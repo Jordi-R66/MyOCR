@@ -1,7 +1,7 @@
 #pragma once
 
 #define IMG_SIZE 28
-#define VECTOR_SIZE 784 // 28*28
+#define PIXEL_COUNT 784 // 28*28
 #define NUM_CLASSES 47
 
 typedef struct EmnistImage {

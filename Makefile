@@ -25,7 +25,7 @@ CLIB_SRCS = external/myOwnAILib/external/myOwnCLib/maths/matrices/matrix.c \
 			external/myOwnAILib/external/myOwnCLib/maths/matrices/mlMatrix.c \
 			external/myOwnAILib/external/myOwnCLib/maths/vectors/vectors.c
 
-MAIN_SRCS = src/main.c
+MAIN_SRCS = src/main.c src/emnist.c
 
 # --- Objets (.o) ---
 AI_OBJS   = $(patsubst %.c, $(BUILD_DIR)/%.o, $(AI_SRCS))

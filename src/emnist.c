@@ -39,7 +39,7 @@ int parse_csv_line(char* line, EmnistPtr img) {
 
 	// 2. Récupérer les 784 pixels
 	int pixel_index = 0;
-	while (pixel_index < VECTOR_SIZE) {
+	while (pixel_index < PIXEL_COUNT) {
 		token = strtok(NULL, ",");
 		if (token == NULL) break;
 
@@ -174,6 +174,7 @@ void save_as_bmp(uint imgNumber, EmnistPtr img) {
 	free(filename);
 }
 
+/*/
 int fake_main() {
 	unsigned int compteur = 0;
 
@@ -233,3 +234,4 @@ int fake_main() {
 	fclose(fp);
 	return 0;
 }
+*/

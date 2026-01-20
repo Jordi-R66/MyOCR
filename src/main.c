@@ -79,7 +79,7 @@ int predict_character(NeuralNet* net, double pixels[784]) {
 	int best_label = 0;
 	double max_prob = -1.0;
 
-	for (int i = 0; i < output->size; i++) {
+	for (uint i = 0; i < output->size; i++) {
 		if (output->data[i] > max_prob) {
 			max_prob = output->data[i];
 			best_label = i;
@@ -90,10 +90,21 @@ int predict_character(NeuralNet* net, double pixels[784]) {
 	return best_label;
 }
 
-int main() {
+int main(int argc, char** argv) {
+
+	if (argc != 2) {
+		return -1;
+	}
+
+	char filename_mapping[128] = {0};
+	char filename_train[128] = {0};
+
+	snprintf(filename_mapping, 128, "%s-mapping.txt", argv[1]);
+	snprintf(filename_train, 128, "%s-train.csv", argv[1]);
+
 	// 1. Initialisation
 	char ascii_map[NUM_CLASSES];
-    load_mapping("datasets/emnist/emnist-balanced-mapping.txt", ascii_map);
+    load_mapping(filename_mapping, ascii_map);
 
 	printf("Création du réseau...\n");
 	NeuralNet net = creer_reseau_ocr();
@@ -103,7 +114,7 @@ int main() {
 	double learning_rate = 0.1;
 	for (int epoch = 1; epoch <= 3; epoch++) {
 		printf("--- EPOCH %d ---\n", epoch);
-		train_one_epoch(&net, "datasets/emnist/emnist-balanced-train.csv", learning_rate);
+		train_one_epoch(&net, filename_train, learning_rate);
 
 		// On réduit souvent le taux d'apprentissage petit à petit
 		learning_rate *= 0.9;

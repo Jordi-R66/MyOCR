@@ -1,21 +1,29 @@
 CC = gcc
-CFLAGS = -O3 -Wall -Wextra -Iinclude -Iexternal/myOwnAILib/external/myOwnCLib -Iexternal/myOwnAILib/src
+# J'ai ajouté la ligne pointant vers 'external/myOwnAILib/include'
+CFLAGS = -O3 -Wall -Wextra \
+		 -Iinclude \
+		 -Iexternal/myOwnAILib/include \
+		 -Iexternal/myOwnAILib/src \
+		 -Iexternal/myOwnAILib/external/myOwnCLib \
+		 -Iexternal/myOwnAILib/external/myOwnCLib/maths/matrices \
+		 -Iexternal/myOwnAILib/external/myOwnCLib/maths/vectors
 LDFLAGS = -lm
 
 # --- Dossiers de destination ---
-BUILD_DIR = build
-LIB_DIR   = lib
-BIN_DIR   = bin
-ASM_DIR   = asm
+COMPILATION_DIR = compilation
+BUILD_DIR       = $(COMPILATION_DIR)/build
+LIB_DIR         = $(COMPILATION_DIR)/lib
+BIN_DIR         = $(COMPILATION_DIR)/bin
+ASM_DIR         = $(COMPILATION_DIR)/asm
 
 # --- Sources ---
 
 AI_SRCS = external/myOwnAILib/src/network.c \
 		  external/myOwnAILib/src/layer.c
 
-CLIB_SRCS = external/myOwnCLib/maths/matrices/matrix.c \
-			external/myOwnCLib/maths/matrices/mlMatrix.c \
-			external/myOwnCLib/maths/vectors/vectors.c
+CLIB_SRCS = external/myOwnAILib/external/myOwnCLib/maths/matrices/matrix.c \
+			external/myOwnAILib/external/myOwnCLib/maths/matrices/mlMatrix.c \
+			external/myOwnAILib/external/myOwnCLib/maths/vectors/vectors.c
 
 MAIN_SRCS = src/main.c
 

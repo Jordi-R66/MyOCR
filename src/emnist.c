@@ -1,4 +1,5 @@
 #include "emnist.h"
+#include <maths/vectors/vectors.h> 
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -174,12 +175,73 @@ void save_as_bmp(uint imgNumber, EmnistPtr img) {
 	free(filename);
 }
 
+VectorPtr load_bmp_image(const char* filename) {
+	FILE* f = fopen(filename, "rb");
+	if (!f) {
+		perror("Impossible d'ouvrir l'image BMP");
+		return NULL;
+	}
+
+	unsigned char header[54];
+	if (fread(header, 1, 54, f) != 54) {
+		fprintf(stderr, "Erreur: Fichier invalide ou trop petit.\n");
+		fclose(f);
+		return NULL;
+	}
+
+	if (header[0] != 'B' || header[1] != 'M') {
+		fprintf(stderr, "Erreur: Ce n'est pas un fichier BMP.\n");
+		fclose(f);
+		return NULL;
+	}
+
+	int w = *(int*)&header[18];
+	int h = *(int*)&header[22];
+
+	if (w != 28 || h != 28) {
+		fprintf(stderr, "Erreur: L'image doit faire 28x28 pixels (actuel: %dx%d).\n", w, h);
+		fclose(f);
+		return NULL;
+	}
+
+	// Allocation du vecteur (Note: on utilise malloc pour que le vecteur survive au retour de fonction)
+	VectorPtr input = (VectorPtr)malloc(sizeof(Vector));
+	*input = createVector(w * h);
+
+	int padding = (4 - (w * 3) % 4) % 4;
+	unsigned char pixel[3];
+
+	// Position au début des données pixels (Offset standard 54 ou lu dans le header)
+	fseek(f, *(int*)&header[10], SEEK_SET);
+
+	// Lecture : Le BMP stocke souvent l'image à l'envers (Bas -> Haut)
+	for (int y = h - 1; y >= 0; y--) {
+		for (int x = 0; x < w; x++) {
+			fread(pixel, 1, 3, f); // B, G, R
+
+			// 1. Conversion Niveaux de gris (Moyenne)
+			double gray = (pixel[0] + pixel[1] + pixel[2]) / 3.0;
+
+			// 2. Normalisation et Inversion
+			// Paint : Fond Blanc (255) / Texte Noir (0)
+			// IA EMNIST : Fond Noir (0.0) / Texte Blanc (1.0)
+			double normalized = (255.0 - gray) / 255.0;
+
+			input->data[y * w + x] = normalized;
+		}
+		fseek(f, padding, SEEK_CUR);
+	}
+
+	fclose(f);
+	return input;
+}
+
 /*/
 int fake_main() {
-	unsigned int compteur = 0;
+	uint compteur = 0;
 
 	char ascii_map[NUM_CLASSES];
-    load_mapping("datasets/emnist/emnist-balanced-mapping.txt", ascii_map);
+	load_mapping("datasets/emnist/emnist-balanced-mapping.txt", ascii_map);
 
 	// 1. Ouvrir le CSV
 	FILE* fp = fopen("datasets/emnist/emnist-balanced-train.csv", "r");
@@ -217,7 +279,7 @@ int fake_main() {
 				save_as_bmp(compteur, &fixed_img);
 
 				// Afficher l'ASCII art seulement pour les premières aussi
-				// print_ascii_art(&fixed_img); 
+				// print_ascii_art(&fixed_img);
 			}
 
 			// Si on veut juste entraîner le modèle plus tard, on ne sauvegardera pas en BMP,

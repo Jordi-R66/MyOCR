@@ -41,6 +41,11 @@ cmd_add() {
 
 	echo "Ajout du submodule $url -> $path"
 	git submodule add "$url" "$path"
+
+	# AJOUT : Initialisation récursive des sous-modules du module ajouté
+	echo "Initialisation récursive des dépendances de $path"
+	git submodule update --init --recursive "$path"
+
 	git commit -m "Add submodule $path"
 }
 
@@ -60,7 +65,8 @@ cmd_update() {
 	if [[ $# -eq 1 ]]; then
 		local path="$1"
 		echo "Mise à jour du submodule $path"
-		git submodule update --remote "$path"
+		# MODIFICATION : Ajout de --recursive
+		git submodule update --remote --recursive "$path"
 	else
 		echo "Mise à jour de tous les submodules"
 		git submodule update --remote --recursive

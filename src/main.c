@@ -6,6 +6,17 @@
 
 // --- VOS FONCTIONS EXISTANTES (INCHANGÉES) ---
 
+// Algorithme de Fisher-Yates pour mélanger le tableau
+void shuffle_dataset(Dataset* ds) {
+	for (int i = ds->count - 1; i > 0; i--) {
+		int j = rand() % (i + 1);
+		// Échange
+		EmnistImage temp = ds->images[i];
+		ds->images[i] = ds->images[j];
+		ds->images[j] = temp;
+	}
+}
+
 NeuralNet creer_reseau_ocr() {
 	NeuralNet net = createNeuralNet(PIXEL_COUNT);
 
@@ -21,7 +32,7 @@ void train_one_epoch_from_ram(NeuralNetPtr net, DatasetPtr ds, double learning_r
 	Vector inputVec = createVector(PIXEL_COUNT);
 	Vector targetVec = createVector(47);
 
-	for (int i = 0; i < ds->count; i++) {
+	for (uint i = 0; i < ds->count; i++) {
 		// 1. Input (Normalisation à la volée, rapide)
 		// Astuce d'optimisation : diviser par 255.0 est lent. Multiplier par (1/255.0) est plus rapide.
 		double inv_255 = 1.0 / 255.0;
@@ -145,6 +156,7 @@ int main(int argc, char** argv) {
 	}
 
 	if (mode == 1) {
+		srand(time(NULL));
 		// 1. Chargement UNIQUE
 		printf("Chargement des données...\n");
 		Dataset train_data = load_dataset_in_memory(filename_train);
@@ -155,22 +167,24 @@ int main(int argc, char** argv) {
 		net = creer_reseau_ocr();
 
 		// 3. Entraînement
-		double learning_rate = 0.1;
+		double learning_rate = 0.05;
 		int epoch;
-		for (epoch = 0; epoch < 5; epoch++) {
+		for (epoch = 0; epoch < 15; epoch++) {
 			clock_t start = clock();
-			printf("--- EPOCH %d ---\n", epoch);
+			printf("--- EPOCH %d ---\n", epoch + 1);
+			printf("--- Mélange du set ---\n");
+			shuffle_dataset(&train_data);
 
 			train_one_epoch_from_ram(&net, &train_data, learning_rate);
 
 			double time_taken = ((double)(clock() - start)) / CLOCKS_PER_SEC;
 			printf("Epoque terminée en %.2f secondes.\n", time_taken);
 
-			learning_rate *= 0.8;
+			learning_rate *= 0.75;
 		}
 
 		char save_name[64];
-		sprintf(save_name, "emnist.neuralnet", epoch);
+		sprintf(save_name, "emnist.neuralnet");
 		saveNeuralNet(&net, save_name);
 
 		free(train_data.images);
@@ -181,6 +195,6 @@ int main(int argc, char** argv) {
 	}
 
 	// Nettoyage
-	if (mode == 1 || mode == 2) {freeNeuralNet(&net);}
+	if (mode == 1 || mode == 2) { freeNeuralNet(&net); }
 	return 0;
 }

@@ -1,57 +1,50 @@
+#include <stdio.h>
+#include <stdlib.h> // Pour malloc/free
+#include <time.h>   // Pour clock() et CLOCKS_PER_SEC
 #include <network.h>
 #include "emnist.h"
-#include <stdio.h>
-#include <stdlib.h> // Pour malloc/free si besoin
 
 // --- VOS FONCTIONS EXISTANTES (INCHANGÉES) ---
 
 NeuralNet creer_reseau_ocr() {
 	NeuralNet net = createNeuralNet(PIXEL_COUNT);
-	neuralNetAddLayer(&net, 128, ACTIVATION_RELU);
+
+	neuralNetAddLayer(&net, 256, ACTIVATION_RELU);
+	//neuralNetAddLayer(&net, PIXEL_COUNT + 1, ACTIVATION_RELU);
+	//neuralNetAddLayer(&net, PIXEL_COUNT + 1, ACTIVATION_RELU);
 	neuralNetAddLayer(&net, 47, ACTIVATION_SOFTMAX);
+
 	return net;
 }
 
-void train_one_epoch(NeuralNet* net, const char* csv_path, double learning_rate) {
-	FILE* fp = fopen(csv_path, "r");
-	if (!fp) {
-		perror("Erreur ouverture fichier train");
-		return;
-	}
-
-	char buffer[4096];
-	EmnistImage raw_img, img_data;
-
-	Vector inputVec = createVector(784);
+void train_one_epoch_from_ram(NeuralNetPtr net, DatasetPtr ds, double learning_rate) {
+	Vector inputVec = createVector(PIXEL_COUNT);
 	Vector targetVec = createVector(47);
 
-	int count = 0;
-	while (fgets(buffer, sizeof(buffer), fp)) {
-		if (!parse_csv_line(buffer, &raw_img)) continue;
-
-		fix_emnist_orientation(&raw_img, &img_data);
-
-		for (int i = 0; i < PIXEL_COUNT; i++) {
-			inputVec.data[i] = (Value)(img_data.pixels[i / 28][i % 28]) / 255.0;
+	for (int i = 0; i < ds->count; i++) {
+		// 1. Input (Normalisation à la volée, rapide)
+		// Astuce d'optimisation : diviser par 255.0 est lent. Multiplier par (1/255.0) est plus rapide.
+		double inv_255 = 1.0 / 255.0;
+		for (int p = 0; p < PIXEL_COUNT; p++) {
+			// Accès linéaire au tableau 2D via cast
+			unsigned char val = ((unsigned char*)ds->images[i].pixels)[p];
+			inputVec.data[p] = (double)val * inv_255;
 		}
 
+		// 2. Target
 		for (int k = 0; k < 47; k++) targetVec.data[k] = 0.0;
-		if (img_data.label < 47) {
-			targetVec.data[img_data.label] = 1.0;
-		}
+		if (ds->images[i].label < 47) targetVec.data[ds->images[i].label] = 1.0;
 
+		// 3. Apprentissage
 		neuralNetForward(net, &inputVec);
 		neuralNetBackward(net, &targetVec);
 		neuralNetUpdate(net, learning_rate);
 
-		count++;
-		if (count % 2000 == 0) printf("Images entrainees: %d\r", count);
+		//if ((i + 1) % 10000 == 0) printf("  -> %d / %d images\r", i + 1, ds->count);
 	}
 	printf("\n");
-
 	deallocVector(&inputVec);
 	deallocVector(&targetVec);
-	fclose(fp);
 }
 
 int predict_character(NeuralNet* net, double pixels[784]) {
@@ -128,68 +121,66 @@ void evaluate_network(NeuralNetPtr net, const char* csv_path) {
 // --- MAIN MODIFIÉ ---
 
 int main(int argc, char** argv) {
-	if (argc != 2) {
-		printf("Usage: %s <chemin_vers_prefixe_dataset>\n", argv[0]);
+	if (argc != 3) {
+		printf("Usage: %s -t/-e datasets/emnist/emnist-balanced\n", argv[0]);
 		return -1;
 	}
+
+	NeuralNet net;
 
 	char filename_mapping[128] = { 0 };
 	char filename_train[128] = { 0 };
 	char filename_test[128] = { 0 }; // Ajout du chemin test
 
-	snprintf(filename_mapping, 128, "%s-mapping.txt", argv[1]);
-	snprintf(filename_train, 128, "%s-train.csv", argv[1]);
-	snprintf(filename_test, 128, "%s-test.csv", argv[1]); // Construction du chemin test
+	snprintf(filename_mapping, 128, "%s-mapping.txt", argv[2]);
+	snprintf(filename_train, 128, "%s-train.csv", argv[2]);
+	snprintf(filename_test, 128, "%s-test.csv", argv[2]); // Construction du chemin test
 
-	// 1. Initialisation
-	char ascii_map[NUM_CLASSES];
-	load_mapping(filename_mapping, ascii_map);
+	uint8 mode = 0;
 
-	printf("Création du réseau...\n");
-	NeuralNet net = creer_reseau_ocr();
-
-	// 2. Entraînement
-	double learning_rate = 0.1;
-	int epoch;
-	for (epoch = 1; epoch <= 3; epoch++) {
-		printf("--- EPOCH %d ---\n", epoch);
-		train_one_epoch(&net, filename_train, learning_rate);
-
-		learning_rate *= 0.8; // Decay léger
+	if (strcmp("-t", argv[1]) == 0) {
+		mode = 1;
+	} else if (strcmp("-e", argv[1]) == 0) {
+		mode = 2;
 	}
 
-	// Sauvegarde
-	char save_name[50] = { 0 };
-	sprintf(save_name, "emnist_epoch_%d.neuralnet", epoch);
-	saveNeuralNet(&net, save_name);
+	if (mode == 1) {
+		// 1. Chargement UNIQUE
+		printf("Chargement des données...\n");
+		Dataset train_data = load_dataset_in_memory(filename_train);
+		if (train_data.count == 0) return 1;
 
-	// 3. Évaluation sur le dataset de Test
-	evaluate_network(&net, filename_test);
+		// 2. Création Réseau
+		printf("Création du réseau...\n");
+		net = creer_reseau_ocr();
 
-	// 4. Test sur une image BMP externe (Optionnel)
-	printf("\n--- TEST IMAGE EXTERNE ---\n");
-	VectorPtr bmpInput = load_bmp_image("test.bmp");
-	if (bmpInput) {
-		VectorPtr output = neuralNetForward(&net, bmpInput);
+		// 3. Entraînement
+		double learning_rate = 0.1;
+		int epoch;
+		for (epoch = 0; epoch < 5; epoch++) {
+			clock_t start = clock();
+			printf("--- EPOCH %d ---\n", epoch);
 
-		int best = 0;
-		double maxProb = -1.0;
-		for (uint i = 0; i < output->size; i++) {
-			if (output->data[i] > maxProb) { maxProb = output->data[i]; best = i; }
+			train_one_epoch_from_ram(&net, &train_data, learning_rate);
+
+			double time_taken = ((double)(clock() - start)) / CLOCKS_PER_SEC;
+			printf("Epoque terminée en %.2f secondes.\n", time_taken);
+
+			learning_rate *= 0.8;
 		}
 
-		printf("Image 'test.bmp' reconnue comme : '%c' (Prob: %.2f%%)\n",
-			ascii_map[best], maxProb * 100.0);
+		char save_name[64];
+		sprintf(save_name, "emnist.neuralnet", epoch);
+		saveNeuralNet(&net, save_name);
 
-		// Nettoyage spécifique BMP
-		deallocVector(bmpInput);
-		free(bmpInput);
-	}
-	else {
-		printf("Aucun fichier 'test.bmp' trouvé. Placez une image 28x28 pour tester.\n");
+		free(train_data.images);
+	} else if (mode == 2) {
+		net = loadNeuralNet("emnist.neuralnet");
+
+		evaluate_network(&net, filename_test);
 	}
 
-	// 5. Nettoyage final
-	freeNeuralNet(&net);
+	// Nettoyage
+	if (mode == 1 || mode == 2) {freeNeuralNet(&net);}
 	return 0;
 }

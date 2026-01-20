@@ -12,7 +12,13 @@ typedef struct EmnistImage {
 	unsigned char pixels[IMG_SIZE][IMG_SIZE];
 } EmnistImage, *EmnistPtr;
 
+typedef struct Dataset {
+    uint count;
+    EmnistImage* images;
+} Dataset, *DatasetPtr;
+
 #define EMNIST_SIZE sizeof(EmnistImage)
+#define DATASET_SIZE sizeof(Dataset)
 
 void load_mapping(const char* filename, char mapping_array[NUM_CLASSES]);
 int parse_csv_line(char* line, EmnistPtr img);
@@ -22,3 +28,5 @@ void save_as_bmp(unsigned int imgNumber, EmnistPtr img);
 
 // --- NOUVEAU : Fonction de chargement BMP ---
 VectorPtr load_bmp_image(const char* filename);
+
+Dataset load_dataset_in_memory(const char* csv_path);

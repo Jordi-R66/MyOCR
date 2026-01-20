@@ -236,7 +236,37 @@ VectorPtr load_bmp_image(const char* filename) {
 	return input;
 }
 
-/*/
+Dataset load_dataset_in_memory(const char* csv_path) {
+	Dataset ds = { 0, NULL };
+	FILE* fp = fopen(csv_path, "r");
+	if (!fp) { perror("Erreur ouverture CSV"); return ds; }
+
+	// Estimation ou comptage préalable (EMNIST Balanced train ~112800 lignes)
+	// On alloue large pour être sûr ou on utilise realloc. Ici on fixe pour l'exemple.
+	int max_samples = 200000;
+	ds.images = (EmnistImage*)calloc(max_samples, EMNIST_SIZE);
+
+	char buffer[4096];
+	int i = 0;
+	while (fgets(buffer, sizeof(buffer), fp) && i < max_samples) {
+		if (parse_csv_line(buffer, &ds.images[i])) {
+			// On peut aussi faire la correction d'orientation ICI une fois pour toutes
+			EmnistImage fixed;
+			fix_emnist_orientation(&ds.images[i], &fixed);
+			ds.images[i] = fixed;
+			i++;
+		}
+	}
+
+	ds.count = i;
+	ds.images = (EmnistImage*)realloc(ds.images, ds.count * EMNIST_SIZE);
+	fclose(fp);
+	printf("Dataset chargé en RAM : %d images.\n", ds.count);
+
+	return ds;
+}
+
+/*
 int fake_main() {
 	uint compteur = 0;
 

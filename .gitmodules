@@ -1,0 +1,3 @@
+[submodule "external/myOwnAILib"]
+	path = external/myOwnAILib
+	url = https://github.com/Jordi-R66/myOwnAILib.git
